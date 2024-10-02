@@ -1,6 +1,7 @@
 from graph import *
 import random
 from tkinter import Tk, Label, Canvas, Button
+import sys
 
 SQUARE_SIZE = 25
 CANVAS_HEIGHT = 700
@@ -39,6 +40,9 @@ class Game:
         self.direction = INITIAL_DIRECTION
         self.score = 0
         self.graph = graph
+        self.graph.show()
+
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def gameover(self):
         self.canvas.delete("all")
@@ -111,11 +115,16 @@ class Game:
         return False
 
     def play(self):
+        # Reset the direction to the initial one
+        self.direction = INITIAL_DIRECTION
+
+        # Clear any previous canvas or label to avoid multiple instances
         if self.label:
             self.label.destroy()
         if self.canvas:
             self.canvas.destroy()
 
+        # Reset score and create new label and canvas
         self.score = 0
         self.label = Label(self.root, text=f"Score is : {self.score}", font=('consolas', 50))
         self.label.pack()
@@ -123,14 +132,25 @@ class Game:
         self.canvas = Canvas(self.root, bg="#000000", height=CANVAS_HEIGHT, width=CANVAS_WIDTH)
         self.canvas.pack()
 
+        # Re-bind the arrow keys to control the snake
         self.root.bind('<Left>', lambda event: self.change_direction('left'))
         self.root.bind('<Right>', lambda event: self.change_direction('right'))
         self.root.bind('<Down>', lambda event: self.change_direction('down'))
         self.root.bind('<Up>', lambda event: self.change_direction('up'))
 
+        # Create new instances of Food and Snake for the new game
         food = Food(self)
         snake = Snake(self)
+        
+        # Start the next turn
         self.next_turn(snake, food)
+    
+    def on_closing(self):
+        # Gracefully exit the Tkinter mainloop
+        self.root.destroy()
+        # Optionally close the Python process if needed
+        sys.exit()
+
 
 # Main game setup
 root = Tk()

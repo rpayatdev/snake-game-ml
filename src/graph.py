@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 
 class Graph:
     
@@ -15,6 +16,18 @@ class Graph:
         plt.xlabel('Turn')
         # naming the y axis
         plt.ylabel('Score points')
+
+        # Ensure the x-axis and y-axis only display integers
+        ax = plt.gca()
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True, prune='both', nbins=5))
+        ax.yaxis.set_major_locator(MaxNLocator(integer=True, prune='both', nbins=5))
+
+        # Optionally, set limits for axes if needed
+        if self.x:
+            plt.xlim(left=0, right=max(self.x) + 1)  # Adjust x-axis limits
+        if self.y:
+            plt.ylim(bottom=0, top=max(self.y) + 1)  # Adjust y-axis limits
+
         # Instead of plt.show(), we use plt.pause() to allow the game window to continue functioning
         plt.pause(0.001)  # Short pause to update the graph
 
