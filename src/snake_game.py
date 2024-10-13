@@ -1,4 +1,5 @@
 from graph import *
+from train import *
 import random
 from tkinter import Tk, Label, Canvas, Button
 import sys
@@ -33,7 +34,7 @@ class Food:
         self.position = game.canvas.create_rectangle(x, y, x + SQUARE_SIZE, y + SQUARE_SIZE, fill=self.colour, tags="food")
 
 class Game:
-    def __init__(self, root, graph):
+    def __init__(self, root, graph, train):
         self.root = root
         self.canvas = None
         self.label = None
@@ -41,10 +42,14 @@ class Game:
         self.score = 0
         self.graph = graph
         self.graph.show()
+        self.train = train
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def gameover(self):
+
+        self.train.add()
+
         self.canvas.delete("all")
         self.label.config(text=f"GAME OVER", fg="red")
 
@@ -101,6 +106,15 @@ class Game:
             self.direction = new_direction
         if new_direction == 'down' and self.direction != 'up':
             self.direction = new_direction
+    
+    def get_distance_to_food(self, snake, food):
+        # Get the coordinates of the snake's head
+        snake_head_x, snake_head_y = snake.coordinates[0]
+        # Get the coordinates of the food
+        food_x, food_y = food.coordinates
+        # Calculate the Manhattan distance between the snake's head and the food
+        distance = abs(snake_head_x - food_x) + abs(snake_head_y - food_y)
+        return distance
 
     def check_collision(self, snake):
         x, y = snake.coordinates[0]
@@ -141,6 +155,9 @@ class Game:
         # Create new instances of Food and Snake for the new game
         food = Food(self)
         snake = Snake(self)
+
+        #Todo!!!!
+        self.status = Status(self.direction)
         
         # Start the next turn
         self.next_turn(snake, food)
@@ -157,7 +174,8 @@ root = Tk()
 root.title("Snake Game")
 
 graph = Graph()
-game = Game(root, graph)
+train = Train()
+game = Game(root, graph, train)
 game.play()
 
 root.mainloop()
