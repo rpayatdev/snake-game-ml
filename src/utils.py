@@ -9,6 +9,8 @@ class Direction:
                 return 2
             case 'down':
                 return 3
+            case _:
+                return -1
 
     def convert2char(direction_num):
         match direction_num:
@@ -20,3 +22,6 @@ class Direction:
                 return 'right'
             case 3:
                 return 'down'
+            case _:
+                return "none"
+            

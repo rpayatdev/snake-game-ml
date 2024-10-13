@@ -1,1 +1,1 @@
-Direction,FoodDirection,DangerLeft,DangerUp,DangerRight,DangerDown,Alive,Size
+Direction,FoodDirection,DangerLeft,DangerUp,DangerRight,DangerDown,DistanceToFood,Alive,Size

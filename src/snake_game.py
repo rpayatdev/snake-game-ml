@@ -10,6 +10,7 @@ CANVAS_WIDTH = 900
 FIELD_HEIGHT = int(CANVAS_HEIGHT / SQUARE_SIZE)
 FIELD_WIDTH = int(CANVAS_WIDTH / SQUARE_SIZE)
 INITIAL_DIRECTION = "down"
+YELLOW = "#FFFB00"
 
 class Snake:
     def __init__(self, game):
@@ -26,9 +27,22 @@ class Snake:
             self.squares.append(square)
 
 class Food:
-    def __init__(self, game):
-        x = random.randint(0, FIELD_WIDTH - 1) * SQUARE_SIZE
-        y = random.randint(0, FIELD_HEIGHT - 1) * SQUARE_SIZE
+    def __init__(self, game, snake):
+        count = 0
+        is_on_snake = True
+        while is_on_snake:
+            count+=1
+            if count > 1000:
+                break
+                #Spiel ist gewonnen Todoooo!!!!
+            is_on_snake = False
+            x = random.randint(0, FIELD_WIDTH - 1) * SQUARE_SIZE
+            y = random.randint(0, FIELD_HEIGHT - 1) * SQUARE_SIZE
+            for snake_x, snake_y in snake.coordinates:
+                if snake_x == x and snake_y == y:
+                    is_on_snake = True
+            
+        
         self.coordinates = [x, y]
         self.colour = "#FF0000"
         self.position = game.canvas.create_rectangle(x, y, x + SQUARE_SIZE, y + SQUARE_SIZE, fill=self.colour, tags="food")
@@ -78,7 +92,9 @@ class Game:
 
         if x == food.coordinates[0] and y == food.coordinates[1]:
             self.score += 1
+            snake.body_size +=1
             self.label.config(text=f"Score is : {self.score}")
+            
 
             last_x, last_y = snake.coordinates[-1]
             snake.coordinates.insert(-1, [last_x, last_y])
@@ -86,7 +102,7 @@ class Game:
             snake.squares.insert(-1, square)
 
             self.canvas.delete(food.position)
-            food = Food(self)
+            food = Food(self, snake)
 
         del snake.coordinates[-1]
         self.canvas.delete(snake.squares[-1])
@@ -113,8 +129,23 @@ class Game:
         # Get the coordinates of the food
         food_x, food_y = food.coordinates
         # Calculate the Manhattan distance between the snake's head and the food
-        distance = abs(snake_head_x - food_x) + abs(snake_head_y - food_y)
+        distance = (abs(snake_head_x - food_x) + abs(snake_head_y - food_y) / SQUARE_SIZE)
         return distance
+    
+    def get_food_direction(self, snake_head_x, snake_head_y, food_x, food_y):
+        
+        if snake_head_x == food_x:
+            if snake_head_y - food_y == SQUARE_SIZE:
+                return 'up'
+            elif snake_head_y - food_y == -SQUARE_SIZE:
+                return 'down'
+        elif snake_head_y == food_y:
+            if snake_head_x - food_x== SQUARE_SIZE:
+                return 'left'
+            elif snake_head_x - food_x == -SQUARE_SIZE:
+                return 'right'
+        else:
+            return 'none'
 
     def check_collision(self, snake):
         x, y = snake.coordinates[0]
@@ -153,11 +184,15 @@ class Game:
         self.root.bind('<Up>', lambda event: self.change_direction('up'))
 
         # Create new instances of Food and Snake for the new game
-        food = Food(self)
         snake = Snake(self)
+        food = Food(self, snake)
 
         #Todo!!!!
-        self.status = Status(self.direction)
+        snake_head_x, snake_head_y = snake.coordinates[0]
+        food_x, food_y = food.coordinates
+        distance_to_food = self.get_distance_to_food(snake_head_x, snake_head_y, food_x, food_y)
+        food_direction = self.get_food_direction(snake_head_x, snake_head_y, food_x, food_y)
+        self.status = Status(self.direction, food_direction, 
         
         # Start the next turn
         self.next_turn(snake, food)

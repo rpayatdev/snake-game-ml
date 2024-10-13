@@ -26,7 +26,7 @@ class Status:
     def get_status(self):
         return [{
             'Direction': self.direction,
-            'FoodLeft': self.food_direction,
+            'FoodDirection': self.food_direction,
             'DangerLeft': self.danger_left,
             'DangerUp': self.danger_up,
             'DangerRight': self.danger_right,
