@@ -3,6 +3,7 @@ from train import *
 import random
 from tkinter import Tk, Label, Canvas, Button
 import sys
+import copy
 
 SQUARE_SIZE = 25
 CANVAS_HEIGHT = 700
@@ -34,7 +35,7 @@ class Food:
             count+=1
             if count > 1000:
                 break
-                #Spiel ist gewonnen Todoooo!!!!
+                #TODO: Spiel ist gewonnen Todoooo!!!!
             is_on_snake = False
             x = random.randint(0, FIELD_WIDTH - 1) * SQUARE_SIZE
             y = random.randint(0, FIELD_HEIGHT - 1) * SQUARE_SIZE
@@ -62,7 +63,7 @@ class Game:
 
     def gameover(self):
 
-        self.train.add()
+        self.train.save()
 
         self.canvas.delete("all")
         self.label.config(text=f"GAME OVER", fg="red")
@@ -74,7 +75,78 @@ class Game:
         self.canvas.create_window(CANVAS_WIDTH/2, 370, window=play_again)
         self.canvas.create_text(CANVAS_WIDTH/2, 450, text=f"{self.score}",font=("Helvetica",20),fill="white")
 
+    def make_decision(self, snake, food):
+        decision = self.direction
+
+        simulated_snake_up = snake
+        simulated_snake_left = snake
+        simulated_snake_right = snake
+        simulated_snake_down = snake
+
+        match self.direction:
+            case 'up':
+                simulated_record_snake_up = self.record_status(self.simulate_step(snake, food, 'up'), food)
+                simulated_record_snake_left = self.record_status(self.simulate_step(snake, food, 'left'), food)
+                simulated_record_snake_right = self.record_status(self.simulate_step(snake, food, 'right'), food)
+
+                predict_up = self.train.predict(simulated_record_snake_up)
+                predict_left = self.train.predict(simulated_record_snake_left)
+                predict_right = self.train.predict(simulated_record_snake_right)
+                #print(f"Prediction for Alive: {pred[0][0]}, Prediction for Size: {pred[0][1]}")
+                if predict_left[0][0] and (( not predict_up[0][0] or ( predict_up[0][0] and predict_left[0][1] >= predict_up[0][1] )) and (not predict_right[0][0] or ( predict_right[0][0] and predict_left[0][1] >= predict_right[0][1] ) )):
+                    decision = 'left'
+                elif predict_right[0][0] and (( not predict_up[0][0] or ( predict_up[0][0] and predict_right[0][1] >= predict_up[0][1] )) and (not predict_left[0][0] or ( predict_left[0][0] and predict_right[0][1] >= predict_left[0][1] ) )):
+                    decision = 'right'
+            case 'down':
+                simulated_record_snake_down = self.record_status(self.simulate_step(snake, food, 'down'), food)
+                simulated_record_snake_left = self.record_status(self.simulate_step(snake, food, 'left'), food)
+                simulated_record_snake_right = self.record_status(self.simulate_step(snake, food, 'right'), food)
+
+                predict_down = self.train.predict(simulated_record_snake_down)
+                predict_left = self.train.predict(simulated_record_snake_left)
+                predict_right = self.train.predict(simulated_record_snake_right)
+
+                if predict_left[0][0] and (( not predict_down[0][0] or ( predict_down[0][0] and predict_left[0][1] >= predict_down[0][1] )) and (not predict_right[0][0] or ( predict_right[0][0] and predict_left[0][1] >= predict_right[0][1] ) )):
+                    decision = 'left'
+                elif predict_right[0][0] and (( not predict_down[0][0] or ( predict_down[0][0] and predict_right[0][1] >= predict_down[0][1] )) and (not predict_left[0][0] or ( predict_left[0][0] and predict_right[0][1] >= predict_left[0][1] ) )):
+                    decision = 'right'
+            case 'left':
+                simulated_record_snake_up = self.record_status(self.simulate_step(snake, food, 'up'), food)
+                simulated_record_snake_left = self.record_status(self.simulate_step(snake, food, 'left'), food)
+                simulated_record_snake_down = self.record_status(self.simulate_step(snake, food, 'down'), food)
+
+                predict_up = self.train.predict(simulated_record_snake_up)
+                predict_down = self.train.predict(simulated_record_snake_down)
+                predict_left = self.train.predict(simulated_record_snake_left)
+
+                if predict_up[0][0] and (( not predict_left[0][0] or ( predict_left[0][0] and predict_up[0][1] >= predict_left[0][1] )) and (not predict_down[0][0] or ( predict_down[0][0] and predict_up[0][1] >= predict_down[0][1] ) )):
+                    decision = 'up'
+                elif predict_down[0][0] and (( not predict_left[0][0] or ( predict_left[0][0] and predict_down[0][1] >= predict_left[0][1] )) and (not predict_up[0][0] or ( predict_up[0][0] and predict_down[0][1] >= predict_up[0][1] ) )):
+                    decision = 'down'
+            case 'right':
+                simulated_record_snake_up = self.record_status(self.simulate_step(snake, food, 'up'), food)
+                simulated_record_snake_down = self.record_status(self.simulate_step(snake, food, 'down'), food)
+                simulated_record_snake_right = self.record_status(self.simulate_step(snake, food, 'right'), food)
+
+                predict_up = self.train.predict(simulated_record_snake_up)
+                predict_down = self.train.predict(simulated_record_snake_down)
+                predict_right = self.train.predict(simulated_record_snake_right)
+
+                if predict_up[0][0] and (( not predict_right[0][0] or ( predict_right[0][0] and predict_up[0][1] >= predict_right[0][1] )) and (not predict_down[0][0] or ( predict_down[0][0] and predict_up[0][1] >= predict_down[0][1] ) )):
+                    decision = 'up'
+                elif predict_down[0][0] and (( not predict_right[0][0] or ( predict_right[0][0] and predict_down[0][1] >= predict_right[0][1] )) and (not predict_up[0][0] or ( predict_up[0][0] and predict_down[0][1] >= predict_up[0][1] ) )):
+                    decision = 'down'
+
+        
+        return decision
+        
+        
+
+
     def next_turn(self, snake, food):
+
+        self.change_direction(self.make_decision(snake,food))
+
         x, y = snake.coordinates[0]
 
         if self.direction == 'up':
@@ -94,7 +166,6 @@ class Game:
             self.score += 1
             snake.body_size +=1
             self.label.config(text=f"Score is : {self.score}")
-            
 
             last_x, last_y = snake.coordinates[-1]
             snake.coordinates.insert(-1, [last_x, last_y])
@@ -107,6 +178,8 @@ class Game:
         del snake.coordinates[-1]
         self.canvas.delete(snake.squares[-1])
         del snake.squares[-1]
+
+        self.train.add(self.record_status(snake, food))
 
         if self.check_collision(snake):
             self.gameover()
@@ -123,13 +196,8 @@ class Game:
         if new_direction == 'down' and self.direction != 'up':
             self.direction = new_direction
     
-    def get_distance_to_food(self, snake, food):
-        # Get the coordinates of the snake's head
-        snake_head_x, snake_head_y = snake.coordinates[0]
-        # Get the coordinates of the food
-        food_x, food_y = food.coordinates
-        # Calculate the Manhattan distance between the snake's head and the food
-        distance = (abs(snake_head_x - food_x) + abs(snake_head_y - food_y) / SQUARE_SIZE)
+    def get_distance_to_food(self, snake_head_x, snake_head_y, food_x, food_y):
+        distance = (abs(snake_head_x - food_x) + abs(snake_head_y - food_y)) / SQUARE_SIZE
         return distance
     
     def get_food_direction(self, snake_head_x, snake_head_y, food_x, food_y):
@@ -139,13 +207,14 @@ class Game:
                 return 'up'
             elif snake_head_y - food_y == -SQUARE_SIZE:
                 return 'down'
+            
         elif snake_head_y == food_y:
             if snake_head_x - food_x== SQUARE_SIZE:
                 return 'left'
             elif snake_head_x - food_x == -SQUARE_SIZE:
                 return 'right'
-        else:
-            return 'none'
+            
+        return 'none'
 
     def check_collision(self, snake):
         x, y = snake.coordinates[0]
@@ -158,6 +227,87 @@ class Game:
             return True
 
         return False
+    
+    def simulate_step(self, snake, food, direction):
+        shallow_snake = copy.deepcopy(snake)
+        x, y = shallow_snake.coordinates[0]
+        match direction:
+            case 'up':
+                y -= SQUARE_SIZE
+            case 'down':
+                y += SQUARE_SIZE
+            case 'left':
+                x -= SQUARE_SIZE
+            case 'right':
+                x += SQUARE_SIZE
+        
+        shallow_snake.coordinates.insert(0, [x, y])
+        #square = self.canvas.create_rectangle(x, y, x + SQUARE_SIZE, y + SQUARE_SIZE, fill=shallow_snake.colour)
+        #shallow_snake.squares.insert(0, square)
+        
+        if x == food.coordinates[0] and y == food.coordinates[1]:
+            shallow_snake.body_size +=1
+        """
+            last_x, last_y = shallow_snake.coordinates[-1]
+            shallow_snake.coordinates.insert(-1, [last_x, last_y])
+            square = self.canvas.create_rectangle(last_x, last_y, last_x + SQUARE_SIZE, last_y + SQUARE_SIZE, fill=shallow_snake.colour)
+            shallow_snake.squares.insert(-1, square) 
+        """
+        del shallow_snake.coordinates[-1]
+        #self.canvas.delete(shallow_snake.squares[-1])
+        #del shallow_snake.squares[-1]
+
+        return shallow_snake
+    
+    def record_status(self, snake, food):
+        snake_head_x, snake_head_y = snake.coordinates[0]
+        food_x, food_y = food.coordinates
+
+        distance_to_food = self.get_distance_to_food(snake_head_x, snake_head_y, food_x, food_y)
+        food_direction = self.get_food_direction(snake_head_x, snake_head_y, food_x, food_y)
+
+        danger_up = False
+        danger_down = False
+        danger_right = False
+        danger_left = False
+
+        simulated_snake_up = snake
+        simulated_snake_left = snake
+        simulated_snake_right = snake
+        simulated_snake_down = snake
+
+        match self.direction:
+            case 'up':
+                simulated_snake_up = self.simulate_step(snake, food, 'up')
+                simulated_snake_left = self.simulate_step(snake, food, 'left')
+                simulated_snake_right = self.simulate_step(snake, food, 'right')
+            case 'down':
+                simulated_snake_down = self.simulate_step(snake, food, 'down')
+                simulated_snake_left = self.simulate_step(snake, food, 'left')
+                simulated_snake_right = self.simulate_step(snake, food, 'right')
+            case 'left':
+                simulated_snake_up = self.simulate_step(snake, food, 'up')
+                simulated_snake_left = self.simulate_step(snake, food, 'left')
+                simulated_snake_down = self.simulate_step(snake, food, 'down')
+            case 'right':
+                simulated_snake_up = self.simulate_step(snake, food, 'up')
+                simulated_snake_down = self.simulate_step(snake, food, 'down')
+                simulated_snake_right = self.simulate_step(snake, food, 'right')
+
+        if self.check_collision(simulated_snake_up):
+            danger_up = True
+        if self.check_collision(simulated_snake_down):
+            danger_down = True
+        if self.check_collision(simulated_snake_right):
+            danger_right = True
+        if self.check_collision(simulated_snake_left):
+            danger_left = True
+
+        alive = not self.check_collision(snake)
+
+        self.status = Status(self.direction, food_direction, danger_left, danger_up, danger_right, danger_down, distance_to_food, alive, snake.body_size)
+
+        return self.status
 
     def play(self):
         # Reset the direction to the initial one
@@ -178,21 +328,18 @@ class Game:
         self.canvas.pack()
 
         # Re-bind the arrow keys to control the snake
+        '''
         self.root.bind('<Left>', lambda event: self.change_direction('left'))
         self.root.bind('<Right>', lambda event: self.change_direction('right'))
         self.root.bind('<Down>', lambda event: self.change_direction('down'))
         self.root.bind('<Up>', lambda event: self.change_direction('up'))
+        '''
 
         # Create new instances of Food and Snake for the new game
         snake = Snake(self)
         food = Food(self, snake)
 
-        #Todo!!!!
-        snake_head_x, snake_head_y = snake.coordinates[0]
-        food_x, food_y = food.coordinates
-        distance_to_food = self.get_distance_to_food(snake_head_x, snake_head_y, food_x, food_y)
-        food_direction = self.get_food_direction(snake_head_x, snake_head_y, food_x, food_y)
-        self.status = Status(self.direction, food_direction, 
+        self.train.add(self.record_status(snake, food))
         
         # Start the next turn
         self.next_turn(snake, food)
