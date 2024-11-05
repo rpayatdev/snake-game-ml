@@ -20,8 +20,18 @@ class Snake:
         self.squares = []
         self.colour = "#00FF00"
 
-        for i in range(0, self.body_size):
-            self.coordinates.append([0, 0])
+        start_x = 0
+        start_y = 0
+
+        for i in range(self.body_size):
+            if INITIAL_DIRECTION == "down":
+                self.coordinates.append([start_x, start_y - i * SQUARE_SIZE])
+            elif INITIAL_DIRECTION == "up":
+                self.coordinates.append([start_x, start_y + i * SQUARE_SIZE])
+            elif INITIAL_DIRECTION == "right":
+                self.coordinates.append([start_x - i * SQUARE_SIZE, start_y])
+            elif INITIAL_DIRECTION == "left":
+                self.coordinates.append([start_x + i * SQUARE_SIZE, start_y])
 
         for x, y in self.coordinates:
             square = game.canvas.create_rectangle(x, y, x + SQUARE_SIZE, y + SQUARE_SIZE, fill=self.colour)
@@ -75,72 +85,36 @@ class Game:
         self.canvas.create_window(CANVAS_WIDTH/2, 370, window=play_again)
         self.canvas.create_text(CANVAS_WIDTH/2, 450, text=f"{self.score}",font=("Helvetica",20),fill="white")
 
+        self.play()
+
     def make_decision(self, snake, food):
         decision = self.direction
+        ALIVE_WEIGHT = 1
+        SIZE_WEIGHT = 5
 
-        simulated_snake_up = snake
-        simulated_snake_left = snake
-        simulated_snake_right = snake
-        simulated_snake_down = snake
+        move_scores = {}
 
-        match self.direction:
-            case 'up':
-                simulated_record_snake_up = self.record_status(self.simulate_step(snake, food, 'up'), food)
-                simulated_record_snake_left = self.record_status(self.simulate_step(snake, food, 'left'), food)
-                simulated_record_snake_right = self.record_status(self.simulate_step(snake, food, 'right'), food)
+        def calculate_score(alive, size):
+            return (ALIVE_WEIGHT * int(alive)) + (SIZE_WEIGHT * size)
 
-                predict_up = self.train.predict(simulated_record_snake_up)
-                predict_left = self.train.predict(simulated_record_snake_left)
-                predict_right = self.train.predict(simulated_record_snake_right)
-                #print(f"Prediction for Alive: {pred[0][0]}, Prediction for Size: {pred[0][1]}")
-                if predict_left[0][0] and (( not predict_up[0][0] or ( predict_up[0][0] and predict_left[0][1] >= predict_up[0][1] )) and (not predict_right[0][0] or ( predict_right[0][0] and predict_left[0][1] >= predict_right[0][1] ) )):
-                    decision = 'left'
-                elif predict_right[0][0] and (( not predict_up[0][0] or ( predict_up[0][0] and predict_right[0][1] >= predict_up[0][1] )) and (not predict_left[0][0] or ( predict_left[0][0] and predict_right[0][1] >= predict_left[0][1] ) )):
-                    decision = 'right'
-            case 'down':
-                simulated_record_snake_down = self.record_status(self.simulate_step(snake, food, 'down'), food)
-                simulated_record_snake_left = self.record_status(self.simulate_step(snake, food, 'left'), food)
-                simulated_record_snake_right = self.record_status(self.simulate_step(snake, food, 'right'), food)
-
-                predict_down = self.train.predict(simulated_record_snake_down)
-                predict_left = self.train.predict(simulated_record_snake_left)
-                predict_right = self.train.predict(simulated_record_snake_right)
-
-                if predict_left[0][0] and (( not predict_down[0][0] or ( predict_down[0][0] and predict_left[0][1] >= predict_down[0][1] )) and (not predict_right[0][0] or ( predict_right[0][0] and predict_left[0][1] >= predict_right[0][1] ) )):
-                    decision = 'left'
-                elif predict_right[0][0] and (( not predict_down[0][0] or ( predict_down[0][0] and predict_right[0][1] >= predict_down[0][1] )) and (not predict_left[0][0] or ( predict_left[0][0] and predict_right[0][1] >= predict_left[0][1] ) )):
-                    decision = 'right'
-            case 'left':
-                simulated_record_snake_up = self.record_status(self.simulate_step(snake, food, 'up'), food)
-                simulated_record_snake_left = self.record_status(self.simulate_step(snake, food, 'left'), food)
-                simulated_record_snake_down = self.record_status(self.simulate_step(snake, food, 'down'), food)
-
-                predict_up = self.train.predict(simulated_record_snake_up)
-                predict_down = self.train.predict(simulated_record_snake_down)
-                predict_left = self.train.predict(simulated_record_snake_left)
-
-                if predict_up[0][0] and (( not predict_left[0][0] or ( predict_left[0][0] and predict_up[0][1] >= predict_left[0][1] )) and (not predict_down[0][0] or ( predict_down[0][0] and predict_up[0][1] >= predict_down[0][1] ) )):
-                    decision = 'up'
-                elif predict_down[0][0] and (( not predict_left[0][0] or ( predict_left[0][0] and predict_down[0][1] >= predict_left[0][1] )) and (not predict_up[0][0] or ( predict_up[0][0] and predict_down[0][1] >= predict_up[0][1] ) )):
-                    decision = 'down'
-            case 'right':
-                simulated_record_snake_up = self.record_status(self.simulate_step(snake, food, 'up'), food)
-                simulated_record_snake_down = self.record_status(self.simulate_step(snake, food, 'down'), food)
-                simulated_record_snake_right = self.record_status(self.simulate_step(snake, food, 'right'), food)
-
-                predict_up = self.train.predict(simulated_record_snake_up)
-                predict_down = self.train.predict(simulated_record_snake_down)
-                predict_right = self.train.predict(simulated_record_snake_right)
-
-                if predict_up[0][0] and (( not predict_right[0][0] or ( predict_right[0][0] and predict_up[0][1] >= predict_right[0][1] )) and (not predict_down[0][0] or ( predict_down[0][0] and predict_up[0][1] >= predict_down[0][1] ) )):
-                    decision = 'up'
-                elif predict_down[0][0] and (( not predict_right[0][0] or ( predict_right[0][0] and predict_down[0][1] >= predict_right[0][1] )) and (not predict_up[0][0] or ( predict_up[0][0] and predict_down[0][1] >= predict_up[0][1] ) )):
-                    decision = 'down'
-
+        possible_moves = {
+            'up': ['up', 'left', 'right'],
+            'down': ['down', 'left', 'right'],
+            'left': ['up', 'left', 'down'],
+            'right': ['up', 'down', 'right']
+        }
         
+        for move in possible_moves[self.direction]:
+            simulated_record = self.record_status(self.simulate_step(snake, food, move), food)
+            prediction = self.train.predict(simulated_record)
+
+            alive, size = prediction[0][0], prediction[0][1]
+            
+            move_scores[move] = calculate_score(alive, size)
+
+        decision = max(move_scores, key=move_scores.get)
+
         return decision
-        
-        
 
 
     def next_turn(self, snake, food):
@@ -184,7 +158,7 @@ class Game:
         if self.check_collision(snake):
             self.gameover()
         else:
-            self.root.after(100, self.next_turn, snake, food)
+            self.root.after(1, self.next_turn, snake, food)
 
     def change_direction(self, new_direction):
         if new_direction == 'left' and self.direction != 'right':

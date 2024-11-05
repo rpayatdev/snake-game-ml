@@ -39,10 +39,10 @@ class Status:
     def get_status_for_feature(self):
         d = {'none': 0, 'left': 1, 'up': 2, 'right': 3, 'down': 4}
         dBool = {False: 0, True: 1}
-        return [[d.get(self.direction,self.direction) ,
+        return pandas.DataFrame(data=numpy.array([[d.get(self.direction,self.direction) ,
                   d.get(self.food_direction,self.food_direction),
                   dBool.get(self.danger_left,self.danger_left), dBool.get(self.danger_up,self.danger_up), dBool.get(self.danger_right,self.danger_right), dBool.get(self.danger_down,self.danger_down),
-                  self.distance_to_food]]
+                  self.distance_to_food]]), columns=features)
 
 class Train:
     def __init__(self):
