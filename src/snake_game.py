@@ -4,12 +4,14 @@ import random
 from tkinter import Tk, Label, Canvas, Button
 import sys
 import copy
+from queue import Queue
 
 SQUARE_SIZE = 25
 CANVAS_HEIGHT = 700
 CANVAS_WIDTH = 900
 FIELD_HEIGHT = int(CANVAS_HEIGHT / SQUARE_SIZE)
 FIELD_WIDTH = int(CANVAS_WIDTH / SQUARE_SIZE)
+MAX_STEPS_WO_FOOD = FIELD_HEIGHT * FIELD_WIDTH
 INITIAL_DIRECTION = "down"
 YELLOW = "#FFFB00"
 
@@ -59,7 +61,7 @@ class Food:
         self.position = game.canvas.create_rectangle(x, y, x + SQUARE_SIZE, y + SQUARE_SIZE, fill=self.colour, tags="food")
 
 class Game:
-    def __init__(self, root, graph, train):
+    def __init__(self, root, graph, train, is_ml):
         self.root = root
         self.canvas = None
         self.label = None
@@ -68,12 +70,18 @@ class Game:
         self.graph = graph
         self.graph.show()
         self.train = train
+        self.is_ml = is_ml
+        self.direction_queue = Queue(maxsize = 3)
+        self.steps_wo_food = 0
+
+        self.speed = 10 if self.is_ml else 100
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     def gameover(self):
-
         self.train.save()
+
+        self.direction_queue = Queue(maxsize = 3)
 
         self.canvas.delete("all")
         self.label.config(text=f"GAME OVER", fg="red")
@@ -85,7 +93,8 @@ class Game:
         self.canvas.create_window(CANVAS_WIDTH/2, 370, window=play_again)
         self.canvas.create_text(CANVAS_WIDTH/2, 450, text=f"{self.score}",font=("Helvetica",20),fill="white")
 
-        self.play()
+        if self.is_ml:
+            self.root.after(100, self.play)
 
     def make_decision(self, snake, food):
         decision = self.direction
@@ -118,9 +127,12 @@ class Game:
 
 
     def next_turn(self, snake, food):
+        self.train.add(self.record_status(snake, food))
 
-        self.change_direction(self.make_decision(snake,food))
-
+        if self.is_ml:
+            self.change_direction(self.make_decision(snake,food))
+        elif not self.direction_queue.empty():
+            self.change_direction(self.direction_queue.get())
         x, y = snake.coordinates[0]
 
         if self.direction == 'up':
@@ -139,6 +151,7 @@ class Game:
         if x == food.coordinates[0] and y == food.coordinates[1]:
             self.score += 1
             snake.body_size +=1
+            self.steps_wo_food = 0
             self.label.config(text=f"Score is : {self.score}")
 
             last_x, last_y = snake.coordinates[-1]
@@ -148,17 +161,22 @@ class Game:
 
             self.canvas.delete(food.position)
             food = Food(self, snake)
+        else:
+            self.steps_wo_food += 1
 
         del snake.coordinates[-1]
         self.canvas.delete(snake.squares[-1])
         del snake.squares[-1]
 
-        self.train.add(self.record_status(snake, food))
+        
 
         if self.check_collision(snake):
+            self.train.add(self.record_status(snake, food))
+            self.gameover()
+        elif self.steps_wo_food >= MAX_STEPS_WO_FOOD:
             self.gameover()
         else:
-            self.root.after(1, self.next_turn, snake, food)
+            self.root.after(self.speed, self.next_turn, snake, food)
 
     def change_direction(self, new_direction):
         if new_direction == 'left' and self.direction != 'right':
@@ -282,6 +300,10 @@ class Game:
         self.status = Status(self.direction, food_direction, danger_left, danger_up, danger_right, danger_down, distance_to_food, alive, snake.body_size)
 
         return self.status
+    
+    def add_direction_to_queue(self, direction):
+        if not self.direction_queue.full():
+            self.direction_queue.put(direction)
 
     def play(self):
         # Reset the direction to the initial one
@@ -302,18 +324,16 @@ class Game:
         self.canvas.pack()
 
         # Re-bind the arrow keys to control the snake
-        '''
-        self.root.bind('<Left>', lambda event: self.change_direction('left'))
-        self.root.bind('<Right>', lambda event: self.change_direction('right'))
-        self.root.bind('<Down>', lambda event: self.change_direction('down'))
-        self.root.bind('<Up>', lambda event: self.change_direction('up'))
-        '''
+        if not self.is_ml:
+            self.root.bind('<Left>', lambda event: self.add_direction_to_queue('left'))
+            self.root.bind('<Right>', lambda event: self.add_direction_to_queue('right'))
+            self.root.bind('<Down>', lambda event: self.add_direction_to_queue('down'))
+            self.root.bind('<Up>', lambda event: self.add_direction_to_queue('up'))
+
 
         # Create new instances of Food and Snake for the new game
         snake = Snake(self)
         food = Food(self, snake)
-
-        self.train.add(self.record_status(snake, food))
         
         # Start the next turn
         self.next_turn(snake, food)
@@ -331,7 +351,8 @@ root.title("Snake Game")
 
 graph = Graph()
 train = Train()
-game = Game(root, graph, train)
+# True means ML is deciding | False means Player is playing with Direction Keys
+game = Game(root, graph, train, True)
 game.play()
 
 root.mainloop()
