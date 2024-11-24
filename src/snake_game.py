@@ -12,6 +12,7 @@ CANVAS_WIDTH = 900
 FIELD_HEIGHT = int(CANVAS_HEIGHT / SQUARE_SIZE)
 FIELD_WIDTH = int(CANVAS_WIDTH / SQUARE_SIZE)
 MAX_STEPS_WO_FOOD = FIELD_HEIGHT * FIELD_WIDTH
+MAX_QUEUE_SIZE = 3
 INITIAL_DIRECTION = "down"
 YELLOW = "#FFFB00"
 
@@ -71,7 +72,7 @@ class Game:
         self.graph.show()
         self.train = train
         self.is_ml = is_ml
-        self.direction_queue = Queue(maxsize = 3)
+        self.direction_queue = Queue(maxsize = MAX_QUEUE_SIZE)
         self.steps_wo_food = 0
 
         self.speed = 10 if self.is_ml else 100
@@ -81,7 +82,7 @@ class Game:
     def gameover(self):
         self.train.save()
 
-        self.direction_queue = Queue(maxsize = 3)
+        self.direction_queue = Queue(maxsize = MAX_QUEUE_SIZE)
 
         self.canvas.delete("all")
         self.label.config(text=f"GAME OVER", fg="red")
@@ -99,32 +100,45 @@ class Game:
     def make_decision(self, snake, food):
         decision = self.direction
         ALIVE_WEIGHT = 1
-        SIZE_WEIGHT = 5
+        DISTANCE_WEIGHT = -1
 
         move_scores = {}
 
-        def calculate_score(alive, size):
-            return (ALIVE_WEIGHT * int(alive)) + (SIZE_WEIGHT * size)
-
+        def calculate_score(alive, size, distance):
+            return ((ALIVE_WEIGHT * int(alive)) +
+                    #(SIZE_WEIGHT * size) +
+                    (DISTANCE_WEIGHT * distance))
+            
         possible_moves = {
             'up': ['up', 'left', 'right'],
             'down': ['down', 'left', 'right'],
             'left': ['up', 'left', 'down'],
             'right': ['up', 'down', 'right']
         }
+
+        surviving_moves = []
         
         for move in possible_moves[self.direction]:
             simulated_record = self.record_status(self.simulate_step(snake, food, move), food)
+
+            distance = simulated_record.get_distance_to_food()
+
             prediction = self.train.predict(simulated_record)
 
             alive, size = prediction[0][0], prediction[0][1]
-            
-            move_scores[move] = calculate_score(alive, size)
+            #print(f"Prediction for Alive: {alive}, Prediction for Size: {size}")
+            if alive > 0.5:  # Threshold für "überlebensfähig"
+                surviving_moves.append(move)
+                move_scores[move] = calculate_score(alive, size, distance)
 
-        decision = max(move_scores, key=move_scores.get)
+        if surviving_moves:
+            max_score = max(move_scores[move] for move in surviving_moves)
+            best_moves = [move for move in surviving_moves if move_scores[move] == max_score]
+            decision = random.choice(best_moves)
+        else:
+            decision = random.choice(possible_moves[self.direction])
 
         return decision
-
 
     def next_turn(self, snake, food):
         self.train.add(self.record_status(snake, food))
@@ -239,9 +253,10 @@ class Game:
         
         if x == food.coordinates[0] and y == food.coordinates[1]:
             shallow_snake.body_size +=1
-        """
+        
             last_x, last_y = shallow_snake.coordinates[-1]
             shallow_snake.coordinates.insert(-1, [last_x, last_y])
+        """
             square = self.canvas.create_rectangle(last_x, last_y, last_x + SQUARE_SIZE, last_y + SQUARE_SIZE, fill=shallow_snake.colour)
             shallow_snake.squares.insert(-1, square) 
         """
@@ -334,6 +349,8 @@ class Game:
         # Create new instances of Food and Snake for the new game
         snake = Snake(self)
         food = Food(self, snake)
+
+        self.steps_wo_food = 0
         
         # Start the next turn
         self.next_turn(snake, food)

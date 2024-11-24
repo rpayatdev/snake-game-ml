@@ -24,6 +24,9 @@ class Status:
         self.alive = alive
         self.size = size
 
+    def get_distance_to_food(self):
+        return self.distance_to_food
+
     def get_status(self):
         return {
             'Direction': self.direction,
@@ -81,7 +84,7 @@ class Train:
         dtree = dtree.fit(X, y)
 
         pred = dtree.predict(status.get_status_for_feature())
-        #print(f"Prediction for Alive: {pred[0][0]}, Prediction for Size: {pred[0][1]}")
+        
         if pred[0][0] == 0:
             pred[0][0] = False
         else:
