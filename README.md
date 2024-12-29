@@ -1,5 +1,5 @@
-# pythontest
-First Proj in Python
+# snake_game_ml
+First Proj in Python with Machine Learning for Snake Game
 
 Everything will be/was Streamed on [Twitch](https://twitch.tv/rpayat) 
 

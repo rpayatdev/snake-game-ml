@@ -1,7 +1,7 @@
 from graph import *
 from train import *
 import random
-from tkinter import Tk, Label, Canvas, Button
+from tkinter import Label, Canvas, Button
 import sys
 import copy
 from queue import Queue
@@ -11,7 +11,6 @@ CANVAS_HEIGHT = 700
 CANVAS_WIDTH = 900
 FIELD_HEIGHT = int(CANVAS_HEIGHT / SQUARE_SIZE)
 FIELD_WIDTH = int(CANVAS_WIDTH / SQUARE_SIZE)
-MAX_STEPS_WO_FOOD = FIELD_HEIGHT * FIELD_WIDTH
 MAX_QUEUE_SIZE = 3
 INITIAL_DIRECTION = "down"
 YELLOW = "#FFFB00"
@@ -62,7 +61,7 @@ class Food:
         self.position = game.canvas.create_rectangle(x, y, x + SQUARE_SIZE, y + SQUARE_SIZE, fill=self.colour, tags="food")
 
 class Game:
-    def __init__(self, root, graph, train, is_ml):
+    def __init__(self, root, graph, train, is_ml, free_borders):
         self.root = root
         self.canvas = None
         self.label = None
@@ -72,8 +71,8 @@ class Game:
         self.graph.show()
         self.train = train
         self.is_ml = is_ml
+        self.free_borders = free_borders
         self.direction_queue = Queue(maxsize = MAX_QUEUE_SIZE)
-        self.steps_wo_food = 0
 
         self.speed = 10 if self.is_ml else 100
 
@@ -100,13 +99,14 @@ class Game:
     def make_decision(self, snake, food):
         decision = self.direction
         ALIVE_WEIGHT = 1
+        INCREASE_WEIGHT = 5
         DISTANCE_WEIGHT = -1
 
         move_scores = {}
 
-        def calculate_score(alive, size, distance):
-            return ((ALIVE_WEIGHT * int(alive)) +
-                    #(SIZE_WEIGHT * size) +
+        def calculate_score(alive, increase, distance):
+            return (#(ALIVE_WEIGHT * int(alive)) +
+                    (INCREASE_WEIGHT * increase) +
                     (DISTANCE_WEIGHT * distance))
             
         possible_moves = {
@@ -119,17 +119,16 @@ class Game:
         surviving_moves = []
         
         for move in possible_moves[self.direction]:
-            simulated_record = self.record_status(self.simulate_step(snake, food, move), food)
+            simulated_record = self.record_status(self.simulate_step(snake, food, move), food, False)
 
             distance = simulated_record.get_distance_to_food()
 
-            prediction = self.train.predict(simulated_record)
+            alive = self.train.predict_alive(simulated_record)
+            increase = self.train.predict_increase(simulated_record)
 
-            alive, size = prediction[0][0], prediction[0][1]
-            #print(f"Prediction for Alive: {alive}, Prediction for Size: {size}")
-            if alive > 0.5:  # Threshold für "überlebensfähig"
+            if alive > 0.5:
                 surviving_moves.append(move)
-                move_scores[move] = calculate_score(alive, size, distance)
+                move_scores[move] = calculate_score(alive, increase, distance)
 
         if surviving_moves:
             max_score = max(move_scores[move] for move in surviving_moves)
@@ -141,8 +140,7 @@ class Game:
         return decision
 
     def next_turn(self, snake, food):
-        self.train.add(self.record_status(snake, food))
-
+        
         if self.is_ml:
             self.change_direction(self.make_decision(snake,food))
         elif not self.direction_queue.empty():
@@ -150,22 +148,22 @@ class Game:
         x, y = snake.coordinates[0]
 
         if self.direction == 'up':
-            y -= SQUARE_SIZE
+            y = (y - SQUARE_SIZE) if y != 0 or not self.free_borders else CANVAS_HEIGHT-SQUARE_SIZE
         if self.direction == 'down':
-            y += SQUARE_SIZE
+            y = (y + SQUARE_SIZE) if y != CANVAS_HEIGHT-SQUARE_SIZE or not self.free_borders else 0
         if self.direction == 'left':
-            x -= SQUARE_SIZE
+            x = (x - SQUARE_SIZE) if x != 0 or not self.free_borders else CANVAS_WIDTH-SQUARE_SIZE
         if self.direction == 'right':
-            x += SQUARE_SIZE
+            x = (x + SQUARE_SIZE) if x != CANVAS_WIDTH-SQUARE_SIZE or not self.free_borders else 0
 
         snake.coordinates.insert(0, [x, y])
         square = self.canvas.create_rectangle(x, y, x + SQUARE_SIZE, y + SQUARE_SIZE, fill=snake.colour)
         snake.squares.insert(0, square)
 
         if x == food.coordinates[0] and y == food.coordinates[1]:
+            self.train.add(self.record_status(snake, food, True))
             self.score += 1
             snake.body_size +=1
-            self.steps_wo_food = 0
             self.label.config(text=f"Score is : {self.score}")
 
             last_x, last_y = snake.coordinates[-1]
@@ -176,18 +174,13 @@ class Game:
             self.canvas.delete(food.position)
             food = Food(self, snake)
         else:
-            self.steps_wo_food += 1
+            self.train.add(self.record_status(snake, food, False))
 
         del snake.coordinates[-1]
         self.canvas.delete(snake.squares[-1])
         del snake.squares[-1]
-
-        
-
+   
         if self.check_collision(snake):
-            self.train.add(self.record_status(snake, food))
-            self.gameover()
-        elif self.steps_wo_food >= MAX_STEPS_WO_FOOD:
             self.gameover()
         else:
             self.root.after(self.speed, self.next_turn, snake, food)
@@ -203,23 +196,38 @@ class Game:
             self.direction = new_direction
     
     def get_distance_to_food(self, snake_head_x, snake_head_y, food_x, food_y):
-        distance = (abs(snake_head_x - food_x) + abs(snake_head_y - food_y)) / SQUARE_SIZE
+        if self.free_borders:
+            x_distance = min(abs(snake_head_x - food_x), CANVAS_WIDTH - abs(snake_head_x - food_x))
+            y_distance = min(abs(snake_head_y - food_y), CANVAS_HEIGHT - abs(snake_head_y - food_y))
+        else:
+            x_distance = abs(snake_head_x - food_x)
+            y_distance = abs(snake_head_y - food_y)
+
+        distance = (x_distance + y_distance) / SQUARE_SIZE
         return distance
     
     def get_food_direction(self, snake_head_x, snake_head_y, food_x, food_y):
-        
-        if snake_head_x == food_x:
-            if snake_head_y - food_y == SQUARE_SIZE:
-                return 'up'
-            elif snake_head_y - food_y == -SQUARE_SIZE:
-                return 'down'
-            
-        elif snake_head_y == food_y:
-            if snake_head_x - food_x== SQUARE_SIZE:
-                return 'left'
-            elif snake_head_x - food_x == -SQUARE_SIZE:
+        if self.free_borders:
+            if (snake_head_x + SQUARE_SIZE) % CANVAS_WIDTH == food_x:
                 return 'right'
-            
+            elif (snake_head_x - SQUARE_SIZE) % CANVAS_WIDTH == food_x:
+                return 'left'
+            elif (snake_head_y + SQUARE_SIZE) % CANVAS_HEIGHT == food_y:
+                return 'down'
+            elif (snake_head_y - SQUARE_SIZE) % CANVAS_HEIGHT == food_y:
+                return 'up'
+        else:
+            if snake_head_x == food_x:
+                if snake_head_y - food_y == SQUARE_SIZE:
+                    return 'up'
+                elif snake_head_y - food_y == -SQUARE_SIZE:
+                    return 'down'
+            elif snake_head_y == food_y:
+                if snake_head_x - food_x == SQUARE_SIZE:
+                    return 'left'
+                elif snake_head_x - food_x == -SQUARE_SIZE:
+                    return 'right'
+
         return 'none'
 
     def check_collision(self, snake):
@@ -229,7 +237,7 @@ class Game:
             if x_pos == x and y_pos == y:
                 return True
 
-        if x >= CANVAS_WIDTH or y >= CANVAS_HEIGHT or x < 0 or y < 0:
+        if not self.free_borders and ( x >= CANVAS_WIDTH-SQUARE_SIZE or y >= CANVAS_HEIGHT-SQUARE_SIZE or x < 0 or y < 0 ):
             return True
 
         return False
@@ -239,13 +247,13 @@ class Game:
         x, y = shallow_snake.coordinates[0]
         match direction:
             case 'up':
-                y -= SQUARE_SIZE
+                y = (y - SQUARE_SIZE) if y != 0 or not self.free_borders else CANVAS_HEIGHT-SQUARE_SIZE
             case 'down':
-                y += SQUARE_SIZE
+                y = (y + SQUARE_SIZE) if y != CANVAS_HEIGHT-SQUARE_SIZE or not self.free_borders else 0
             case 'left':
-                x -= SQUARE_SIZE
+                x = (x - SQUARE_SIZE) if x != 0 or not self.free_borders else CANVAS_WIDTH-SQUARE_SIZE
             case 'right':
-                x += SQUARE_SIZE
+                x = (x + SQUARE_SIZE) if x != CANVAS_WIDTH-SQUARE_SIZE or not self.free_borders else 0
         
         shallow_snake.coordinates.insert(0, [x, y])
         #square = self.canvas.create_rectangle(x, y, x + SQUARE_SIZE, y + SQUARE_SIZE, fill=shallow_snake.colour)
@@ -266,7 +274,7 @@ class Game:
 
         return shallow_snake
     
-    def record_status(self, snake, food):
+    def record_status(self, snake, food, increase):
         snake_head_x, snake_head_y = snake.coordinates[0]
         food_x, food_y = food.coordinates
 
@@ -312,7 +320,7 @@ class Game:
 
         alive = not self.check_collision(snake)
 
-        self.status = Status(self.direction, food_direction, danger_left, danger_up, danger_right, danger_down, distance_to_food, alive, snake.body_size)
+        self.status = Status(self.direction, food_direction, danger_left, danger_up, danger_right, danger_down, distance_to_food, alive, increase)
 
         return self.status
     
@@ -350,7 +358,7 @@ class Game:
         snake = Snake(self)
         food = Food(self, snake)
 
-        self.steps_wo_food = 0
+        self.train.add(self.record_status(snake, food, False))
         
         # Start the next turn
         self.next_turn(snake, food)
@@ -360,16 +368,3 @@ class Game:
         self.root.destroy()
         # Optionally close the Python process if needed
         sys.exit()
-
-
-# Main game setup
-root = Tk()
-root.title("Snake Game")
-
-graph = Graph()
-train = Train()
-# True means ML is deciding | False means Player is playing with Direction Keys
-game = Game(root, graph, train, True)
-game.play()
-
-root.mainloop()
