@@ -11,7 +11,7 @@ class Status:
     def __init__(self, direction, 
                  food_direction, 
                  danger_left, danger_up, danger_right, danger_down,
-                 distance_to_food, alive=True, increase=False):
+                 distance_to_food, decision_method, alive=True, increase=False, ):
         self.direction = direction
         self.food_direction = food_direction
         self.danger_left = danger_left
@@ -21,10 +21,14 @@ class Status:
         self.distance_to_food = distance_to_food
         self.alive = alive
         self.increase = increase
+        self.decision_method = decision_method
 
     def get_distance_to_food(self):
         return self.distance_to_food
-
+    def get_danger(self):
+        dBool = {False: 0, True: 1}
+        return dBool.get(self.danger_left) + dBool.get(self.danger_up) + dBool.get(self.danger_right) + dBool.get(self.danger_down)
+    
     def get_status(self):
         return {
             'Direction': self.direction,
@@ -35,19 +39,20 @@ class Status:
             'DangerDown': self.danger_down,
             'DistanceToFood': self.distance_to_food,
             'Alive': self.alive,
-            'Increase': self.increase
+            'Increase': self.increase,
+            'DecisionMethod': self.decision_method
         }
     def get_status_for_feature_alive(self):
         d = {'none': 0, 'left': 1, 'up': 2, 'right': 3, 'down': 4}
         dBool = {False: 0, True: 1}
-        return pandas.DataFrame(data=numpy.array([[d.get(self.direction,self.direction) ,
-                  dBool.get(self.danger_left,self.danger_left), dBool.get(self.danger_up,self.danger_up), dBool.get(self.danger_right,self.danger_right), dBool.get(self.danger_down,self.danger_down)
+        return pandas.DataFrame(data=numpy.array([[d.get(self.direction) ,
+                  dBool.get(self.danger_left), dBool.get(self.danger_up), dBool.get(self.danger_right), dBool.get(self.danger_down)
                   ]]), columns=features_alive)
     def get_status_for_feature_food(self):
         d = {'none': 0, 'left': 1, 'up': 2, 'right': 3, 'down': 4}
         dBool = {False: 0, True: 1}
-        return pandas.DataFrame(data=numpy.array([[d.get(self.direction,self.direction) ,
-                  d.get(self.food_direction,self.food_direction),
+        return pandas.DataFrame(data=numpy.array([[d.get(self.direction) ,
+                  d.get(self.food_direction),
                   self.distance_to_food]]), columns=features_food)
 class Train:
     def __init__(self):

@@ -1,1 +1,1 @@
-Direction,FoodDirection,DangerLeft,DangerUp,DangerRight,DangerDown,DistanceToFood,Alive,Increase
+Direction,FoodDirection,DangerLeft,DangerUp,DangerRight,DangerDown,DistanceToFood,Alive,Increase,DecisionMethod
